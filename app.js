@@ -980,7 +980,12 @@ function calculate(isLive = false) {
 
     const moversCost = totalHours * p.moverPerHour;
     const truckCost = p.truck;
-    const kmCost = km * p.perKm;
+
+    // Rijkosten (brandstof/slijtage) in vaste staffels o.b.v. kilometers
+    let kmCost = 30; // 0 - 50 km
+    if (km > 150) kmCost = 75;
+    else if (km > 100) kmCost = 50;
+    else if (km >= 50) kmCost = 40;
     const voorrijCost = p.voorrijkosten;
     const montageCost = state.hasMontage ? (state.montageHours * p.montageRate) : 0;
 
@@ -1043,7 +1048,7 @@ function calculate(isLive = false) {
 
         breakdownHTML += `
             <div class="bd-row">
-                <span class="bd-label"><i data-lucide="map" style="width:14px;height:14px"></i> KM-vergoeding (${totalKm} km${trips > 1 ? ` — ${trips} ritten` : ''})</span>
+                <span class="bd-label"><i data-lucide="map" style="width:14px;height:14px"></i> Rijkosten (${totalKm} km${trips > 1 ? ` — ${trips} ritten` : ''})</span>
                 <span class="bd-val">€ ${fmt(kmCost)}</span>
             </div>
             <div class="bd-row">
