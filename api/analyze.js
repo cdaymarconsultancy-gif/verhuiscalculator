@@ -77,23 +77,8 @@ FORMAAT: [{"name": "Bank", "vol": 1.5, "icon": "🛋️", "montageRequired": tru
         }
     }
 
-    const keyDebug = apiKey ? `...${apiKey.slice(-4)}` : 'GEEN SLEUTEL';
-    let diagnostics = "";
-    try {
-        const diagUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-        const diagRes = await fetch(diagUrl);
-        const diagData = await diagRes.json();
-        if (diagData.models) {
-            diagnostics = diagData.models.map(m => m.name.replace('models/', '')).join(', ').substring(0, 100) + '...';
-        } else {
-            diagnostics = JSON.stringify(diagData).substring(0, 150);
-        }
-    } catch (e) {
-        diagnostics = e.message;
-    }
-
     return res.status(500).json({
-        error: `[v2.5] Sleutel: ${keyDebug}. Toegang: ${diagnostics}. Fout: ${lastError}`,
-        suggestion: "Controleer of 'Generative Language API' aan staat in Google Cloud of test een andere API key."
+        error: `AI herkenning mislukt. Probeer het opnieuw.`,
+        suggestion: "Controleer uw verbinding of voeg de items handmatig toe via de lijst."
     });
 }
