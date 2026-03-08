@@ -704,8 +704,8 @@ async function handleFiles(files) {
 }
 
 async function analyzeImagesWithGemini(images) {
-    // Stuur maximaal de laatste 3 foto's om binnen Vercel limieten te blijven
-    const limitedImages = images.slice(-3);
+    // Stuur maximaal de laatste 5 foto's om binnen Vercel limieten te blijven (4.5MB totaal)
+    const limitedImages = images.slice(-5);
 
     const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -882,11 +882,12 @@ function recalcAiVolume() {
     state.aiDetectedItems.forEach(item => {
         if (item.checked) {
             totalVol += item.vol * item.qty;
+            const mMin = item.montageMinutes || 0;
             if (item.needsDemontage) {
-                totalDemontageMinutes += (item.montageMinutes * 0.8) * item.qty; // Demontage is meestal sneller
+                totalDemontageMinutes += (mMin * 0.8) * item.qty; // Demontage is meestal sneller
             }
             if (item.needsMontage) {
-                totalMontageMinutes += item.montageMinutes * item.qty;
+                totalMontageMinutes += mMin * item.qty;
             }
         }
     });

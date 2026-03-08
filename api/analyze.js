@@ -8,27 +8,26 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Geen afbeeldingen ontvangen' });
     }
 
+    // fallback test API key if Vercel env is not set
     const apiKey = process.env.GEMINI_API_KEY || process.env.GEMENI_API_KEY || 'AIzaSyAoWNT1TuSqpmulfbTikHuh7NfUyagXzn4';
 
-    // Prioriteit voor modellen en versies
+    // We proberen verschillende combinaties van versies en modelnamen
     const models = [
+        { name: 'gemini-1.5-flash-latest', version: 'v1beta' },
+        { name: 'gemini-1.5-flash', version: 'v1beta' },
         { name: 'gemini-1.5-flash', version: 'v1' },
-        { name: 'gemini-1.5-flash-8b', version: 'v1' },
+        { name: 'gemini-1.5-pro', version: 'v1beta' }
     ];
 
-    const prompt = `Je bent een expert verhuis-taxateur. Analyseer de foto(s) en maak een lijst van meubels en witgoed.
-    
-    RICHTLIJNEN:
-    - Identificeer elk meubelstuk (bank, tafel, kast, bed, etc.).
-    - Schat het volume in m3 (bijv 1.5 voor een bank).
-    - Geef aan of montage/demontage nodig is.
-    - Antwoord ALLEEN met een JSON array. Geef geen extra tekst of uitleg.
-    
-    FORMAAT:
-    [{"name": "Bank", "vol": 1.5, "icon": "🛋️", "montageRequired": true, "qty": 1}]`;
+    const prompt = `Je bent een expert verhuis-taxateur. Analyseer de foto's en geef een JSON lijst van meubels.
+Richtlijnen: 
+- Schat volume in m3 (Bank: 1.5, Grote hoekbank: 3.0, Stoel: 0.2, Kast: 1.0, Wasmachine: 0.5).
+- Geef aan of montageRequired (true/false) en schat montageMinutes (tijd nodig voor (de)montage).
+- Gebruik alleen Nederlands.
 
-    const limitedImages = images.slice(0, 2);
+FORMAAT: [{"name": "Bank", "vol": 1.5, "icon": "🛋️", "montageRequired": true, "montageMinutes": 20, "qty": 1}]`;
 
+    const limitedImages = images.slice(0, 3);
     const requestBody = {
         contents: [{
             parts: [
@@ -38,15 +37,13 @@ export default async function handler(req, res) {
                 }))
             ]
         }],
-        safetySettings: [
-            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-        ]
+        generationConfig: {
+            temperature: 0.1,
+            responseMimeType: "application/json"
+        }
     };
 
-    let lastError = null;
+    let lastError = "";
 
     for (const model of models) {
         try {
@@ -57,38 +54,33 @@ export default async function handler(req, res) {
                 body: JSON.stringify(requestBody)
             });
 
-            const responseData = await response.json();
+            const data = await response.json();
 
             if (response.ok) {
-                const outputText = responseData?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+                const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
                 try {
-                    const cleanJson = outputText.replace(/```json/g, '').replace(/```/g, '').trim();
-                    const parsed = JSON.parse(cleanJson);
-                    const items = Array.isArray(parsed) ? parsed : (parsed.items || parsed.inventory || []);
-                    return res.status(200).json(items);
-                } catch (pe) {
-                    console.error("Parse fail:", outputText);
-                    const match = outputText.match(/\[[\s\S]*\]/);
+                    const parsed = JSON.parse(text);
+                    return res.status(200).json(Array.isArray(parsed) ? parsed : (parsed.items || []));
+                } catch (e) {
+                    // Als het geen JSON is, probeer te herstellen
+                    const match = text.match(/\[.*\]/s);
                     if (match) return res.status(200).json(JSON.parse(match[0]));
-                    return res.status(200).json({ error: "AI output onleesbaar", raw: outputText });
+                    continue;
                 }
             } else {
-                lastError = responseData.error?.message || `Status ${response.status}`;
-                console.error(`Gemini Error (${model.name}):`, lastError);
-                if (response.status === 429) continue; // Alleen bij rate limit proberen we volgende
-                if (response.status === 400 && lastError.includes("API key")) {
-                    return res.status(403).json({ error: "API Sleutel Ongeldig of Verlopen. Controleer Vercel Settings." });
-                }
-                return res.status(response.status).json({ error: lastError });
+                lastError = data.error?.message || `Status ${response.status}`;
+                console.warn(`Model ${model.name} (${model.version}) failed:`, lastError);
+                // Ga door naar de volgende combinatie
+                continue;
             }
-        } catch (e) {
-            lastError = e.message;
-            console.warn(`Model ${model.name} failed:`, e);
+        } catch (err) {
+            lastError = err.message;
+            continue;
         }
     }
 
     return res.status(500).json({
-        error: `AI herkenning mislukt: ${lastError || 'Geen verbinding mogelijk'}`,
-        suggestion: "Controleer of de Gemini API key correct is ingesteld in Vercel."
+        error: `AI herkenning mislukt. Laatste fout: ${lastError}`,
+        suggestion: "Controleer of de API key geldig is of voeg items handmatig toe."
     });
 }
