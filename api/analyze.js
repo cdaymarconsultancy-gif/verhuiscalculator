@@ -10,14 +10,13 @@ export default async function handler(req, res) {
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.GEMENI_API_KEY;
 
-    // We breiden de lijst uit met de meest stabiele en nieuwste varianten
+    // We gebruiken nu uitsluitend de modellen die Google expliciet toestaat via de nieuwe sleutel
     const models = [
-        { name: 'gemini-1.5-flash-8b', version: 'v1beta' },
-        { name: 'gemini-1.5-flash-latest', version: 'v1beta' },
-        { name: 'gemini-1.5-flash', version: 'v1beta' },
-        { name: 'gemini-1.5-flash', version: 'v1' },
-        { name: 'gemini-1.5-flash-001', version: 'v1beta' },
-        { name: 'gemini-1.5-pro-latest', version: 'v1beta' }
+        { name: 'gemini-2.5-flash', version: 'v1beta' },
+        { name: 'gemini-2.5-pro', version: 'v1beta' },
+        { name: 'gemini-2.0-flash', version: 'v1beta' },
+        { name: 'gemini-2.0-flash-001', version: 'v1beta' },
+        { name: 'gemini-2.0-flash-exp', version: 'v1beta' }
     ];
 
     const prompt = `Je bent een expert verhuis-taxateur. Analyseer de foto's en geef een JSON lijst van meubels.
