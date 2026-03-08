@@ -12,8 +12,8 @@ export default async function handler(req, res) {
 
     // Prioriteit voor modellen en versies
     const models = [
-        { name: 'gemini-1.5-flash', version: 'v1beta' },
-        { name: 'gemini-1.5-flash-8b', version: 'v1beta' },
+        { name: 'gemini-1.5-flash', version: 'v1' },
+        { name: 'gemini-1.5-flash-8b', version: 'v1' },
     ];
 
     const prompt = `Je bent een expert verhuis-taxateur. Analyseer de foto(s) en maak een lijst van meubels en witgoed.
@@ -22,10 +22,10 @@ export default async function handler(req, res) {
     - Identificeer elk meubelstuk (bank, tafel, kast, bed, etc.).
     - Schat het volume in m3 (bijv 1.5 voor een bank).
     - Geef aan of montage/demontage nodig is.
-    - Antwoord ALLEEN in JSON formaat (een array van objecten).
+    - Antwoord ALLEEN met een JSON array. Geef geen extra tekst of uitleg.
     
     FORMAAT:
-    [{"name": "Bank", "vol": 1.5, "icon": "🛋️", "montageRequired": true, "montageMinutes": 20, "qty": 1}]`;
+    [{"name": "Bank", "vol": 1.5, "icon": "🛋️", "montageRequired": true, "qty": 1}]`;
 
     const limitedImages = images.slice(0, 2);
 
@@ -38,10 +38,6 @@ export default async function handler(req, res) {
                 }))
             ]
         }],
-        generationConfig: {
-            response_mime_type: "application/json",
-            temperature: 0.1
-        },
         safetySettings: [
             { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
             { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
