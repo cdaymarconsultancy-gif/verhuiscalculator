@@ -10,13 +10,11 @@ export default async function handler(req, res) {
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.GEMENI_API_KEY || 'AIzaSyAoWNT1TuSqpmulfbTikHuh7NfUyagXzn4';
 
-    // We breiden de lijst uit met de meest stabiele en nieuwste varianten
+    // Terug naar de meest stabiele combinaties zonder te veel poespas
     const models = [
-        { name: 'gemini-1.5-flash-latest', version: 'v1beta' },
-        { name: 'gemini-1.5-flash', version: 'v1beta' },
         { name: 'gemini-1.5-flash', version: 'v1' },
-        { name: 'gemini-1.5-flash-001', version: 'v1beta' },
-        { name: 'gemini-1.5-pro-latest', version: 'v1beta' }
+        { name: 'gemini-1.5-flash', version: 'v1beta' },
+        { name: 'gemini-1.5-pro', version: 'v1beta' }
     ];
 
     const prompt = `Je bent een expert verhuis-taxateur. Analyseer de foto's en geef een JSON lijst van meubels.
@@ -25,29 +23,33 @@ Richtlijnen:
 - Geef aan of montageRequired (true/false) en schat montageMinutes (tijd nodig voor (de)montage).
 - Gebruik alleen Nederlands.
 
+Belangrijk: Antwoord ALLEEN met de JSON array, geen andere tekst.
 FORMAAT: [{"name": "Bank", "vol": 1.5, "icon": "🛋️", "montageRequired": true, "montageMinutes": 20, "qty": 1}]`;
 
+    // Beperk tot 2-3 foto's voor maximale stabiliteit
     const limitedImages = images.slice(0, 3);
-    const requestBody = {
-        contents: [{
-            parts: [
-                { text: prompt },
-                ...limitedImages.map(img => ({
-                    inlineData: { mimeType: img.mimeType, data: img.base64 }
-                }))
-            ]
-        }],
-        generationConfig: {
-            temperature: 0.1,
-            responseMimeType: "application/json"
-        }
-    };
 
     let lastError = "";
 
     for (const model of models) {
         try {
             const url = `https://generativelanguage.googleapis.com/${model.version}/models/${model.name}:generateContent?key=${apiKey}`;
+
+            // Simpele request body zonder responseMimeType (voor maximale compatibiliteit)
+            const requestBody = {
+                contents: [{
+                    parts: [
+                        { text: prompt },
+                        ...limitedImages.map(img => ({
+                            inlineData: { mimeType: img.mimeType, data: img.base64 }
+                        }))
+                    ]
+                }],
+                generationConfig: {
+                    temperature: 0.2
+                }
+            };
+
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -59,16 +61,17 @@ FORMAAT: [{"name": "Bank", "vol": 1.5, "icon": "🛋️", "montageRequired": tru
             if (response.ok) {
                 const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
                 try {
-                    const parsed = JSON.parse(text);
-                    return res.status(200).json(Array.isArray(parsed) ? parsed : (parsed.items || []));
+                    // Probeer de JSON te vinden in de tekst (voor het geval de AI toch tekst toevoegt)
+                    const jsonMatch = text.match(/\[[\s\S]*\]/);
+                    const cleanJson = jsonMatch ? jsonMatch[0] : text;
+                    const parsed = JSON.parse(cleanJson);
+                    return res.status(200).json(Array.isArray(parsed) ? parsed : []);
                 } catch (e) {
-                    const match = text.match(/\[.*\]/s);
-                    if (match) return res.status(200).json(JSON.parse(match[0]));
-                    continue;
+                    console.error("Parse error on model", model.name, e);
+                    continue; // Probeer volgende model
                 }
             } else {
                 lastError = data.error?.message || JSON.stringify(data.error) || `Status ${response.status}`;
-                console.warn(`Model ${model.name} (${model.version}) failed:`, lastError);
                 continue;
             }
         } catch (err) {
@@ -78,7 +81,7 @@ FORMAAT: [{"name": "Bank", "vol": 1.5, "icon": "🛋️", "montageRequired": tru
     }
 
     return res.status(500).json({
-        error: `[v2.2] AI herkenning mislukt. Laatste poging: ${lastError}`,
-        suggestion: "Probeer het over een minuutje nog een keer of voeg items handmatig toe."
+        error: `[v2.3] AI-verbinding mislukt. Laatste fout: ${lastError}`,
+        suggestion: "Controleer de API-sleutel of probeer het met minder foto's."
     });
 }
