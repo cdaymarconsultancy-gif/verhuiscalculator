@@ -35,7 +35,8 @@ const state = {
 // ============================================================
 // CONFIGURATIE (ZET HIER JE SLEUTEL)
 // ============================================================
-const GEMINI_API_KEY = 'AIzaSyBhZ6hCh9PrF5bbRYG4POGC-G_L1Sl0xRY';
+// De API sleutel staat nu veilig in Vercel Environment Variables
+const GEMINI_API_KEY = 'SECURE_ON_SERVER';
 
 
 
@@ -631,7 +632,7 @@ function handleFiles(files) {
         }
 
         try {
-            const detectedItems = await analyzeImagesWithGemini(images, GEMINI_API_KEY);
+            const detectedItems = await analyzeImagesWithGemini(images);
 
             if (detectedItems && detectedItems.length > 0) {
                 clearInterval(progressInterval);
@@ -655,64 +656,24 @@ function handleFiles(files) {
     });
 }
 
-async function analyzeImagesWithGemini(images, apiKey) {
-    // Meest stabiele combinatie eerst
-    const models = [
-        'gemini-1.5-flash',
-        'gemini-1.5-flash-latest',
-        'gemini-2.0-flash'
-    ];
+async function analyzeImagesWithGemini(images) {
+    try {
+        const response = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ images })
+        });
 
-    const prompt = `Je bent een verhuis-taxateur. Bekijk de foto zorgvuldig en lijst ALLE meubels op.
-    Ik zie op deze foto's in ieder geval een grote BANK. Zorg dat je deze en alle andere items (stoelen, tafels, kasten) herkent.
-    
-    Antwoord in dit JSON formaat:
-    [{"name": "Bank", "vol": 1.5, "icon": "🛋️", "montageRequired": true, "montageMinutes": 20, "qty": 1}]`;
-
-    const requestBody = {
-        contents: [{
-            parts: [
-                { text: prompt },
-                ...images.map(img => ({ inlineData: { mimeType: img.mimeType, data: img.base64 } }))
-            ]
-        }]
-    };
-
-    let lastErrorMessage = "";
-
-    for (const modelName of models) {
-        // We proberen EERST v1beta omdat die vaak beter werkt voor multimodal
-        for (const version of ['v1beta', 'v1']) {
-            try {
-                const url = `https://generativelanguage.googleapis.com/${version}/models/${modelName}:generateContent?key=${apiKey}`;
-
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestBody)
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-                    const outputText = result?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-                    const match = outputText.match(/\[[\s\S]*\]/);
-                    if (match) {
-                        console.log(`AI succes met model: ${modelName} (${version})`);
-                        return JSON.parse(match[0]);
-                    }
-                } else {
-                    const errData = await response.json().catch(() => ({}));
-                    lastErrorMessage = `${modelName}/${version}: ${errData?.error?.message || response.status}`;
-                    console.warn(`Model ${modelName} op ${version} mislukt: ${lastErrorMessage}`);
-                }
-            } catch (e) {
-                console.error(`Netwerkfout met ${modelName} op ${version}:`, e);
-                lastErrorMessage = e.message;
-            }
+        if (response.ok) {
+            return await response.json();
+        } else {
+            const err = await response.json();
+            throw new Error(err.error || 'Server fout');
         }
+    } catch (e) {
+        console.error('Proxy fout:', e);
+        throw e;
     }
-
-    throw new Error(lastErrorMessage || "Geen werkend AI model gevonden.");
 }
 
 function finishScanWithAI(fileCount, detectedItems) {
