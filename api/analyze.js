@@ -8,7 +8,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Geen afbeeldingen ontvangen' });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GEMENI_API_KEY || 'AIzaSyAoWNT1TuSqpmulfbTikHuh7NfUyagXzn4';
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GEMENI_API_KEY;
 
     // We breiden de lijst uit met de meest stabiele en nieuwste varianten
     const models = [
