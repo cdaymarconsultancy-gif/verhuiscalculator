@@ -656,11 +656,14 @@ function handleFiles(files) {
 }
 
 async function analyzeImagesWithGemini(images, apiKey) {
-    // We proberen de meest stabiele modellen
+    // We proberen alle mogelijke varianten voor maximale kans op succes
     const models = [
         'gemini-2.0-flash',
         'gemini-1.5-flash',
-        'gemini-1.5-flash-latest'
+        'gemini-1.5-flash-8b',
+        'gemini-2.0-flash-exp',
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-pro'
     ];
 
     const prompt = `Inventariseer alle meubels op deze foto's voor een verhuis-offerte. Geef ALLEEN een JSON lijst terug: [{"name": "Meubelnaam", "vol": 1.0, "icon": "emoji", "montageRequired": true, "montageMinutes": 30, "qty": 1}]`;
