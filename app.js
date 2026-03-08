@@ -656,12 +656,11 @@ function handleFiles(files) {
 }
 
 async function analyzeImagesWithGemini(images, apiKey) {
-    // We proberen de nieuwste modellen van 2026
+    // We proberen de meest stabiele modellen
     const models = [
-        'gemini-3.1-flash-lite',
-        'gemini-3-flash',
-        'gemini-2.5-flash',
-        'gemini-1.5-flash' // Laatste redding
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-latest'
     ];
 
     const prompt = `Inventariseer alle meubels op deze foto's voor een verhuis-offerte. Geef ALLEEN een JSON lijst terug: [{"name": "Meubelnaam", "vol": 1.0, "icon": "emoji", "montageRequired": true, "montageMinutes": 30, "qty": 1}]`;
@@ -681,9 +680,8 @@ async function analyzeImagesWithGemini(images, apiKey) {
 
     for (const modelName of models) {
         try {
-            // We proberen zowel v1 als v1beta afhankelijk van het model
-            const version = modelName.includes('3') ? 'v1' : 'v1beta';
-            const url = `https://generativelanguage.googleapis.com/${version}/models/${modelName}:generateContent?key=${apiKey}`;
+            // We proberen het 'stable' v1 endpoint (v1beta gaf bij jou een foutmelding)
+            const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
 
             const response = await fetch(url, {
                 method: 'POST',
