@@ -663,7 +663,18 @@ async function analyzeImagesWithGemini(images, apiKey) {
         'gemini-1.5-flash-latest'
     ];
 
-    const prompt = `Inventariseer alle meubels op deze foto's voor een verhuis-offerte. Geef ALLEEN een JSON lijst terug: [{"name": "Meubelnaam", "vol": 1.0, "icon": "emoji", "montageRequired": true, "montageMinutes": 30, "qty": 1}]`;
+    const prompt = `Je bent een ervaren verhuis-expert. Bekijk de foto's en maak een lijst van ALLE meubels die moeten worden verhuisd.
+    
+    BELANGRIJK: Vergeet de BANK (sofa) niet als deze zichtbaar is! Zoek ook naar Bedden, Kasten, Tafels en Stoelen.
+    
+    Geef voor elk item:
+    1. Een duidelijke naam (bijv. "Bank 3-zits", "Eettafel", "Hoekbank").
+    2. Het volume in m3 (grote bank = 1.6, kleine bank = 1.0, tafel = 1.0, bed = 1.5).
+    3. Een passend icoon (emoji).
+    4. Of het gedemonteerd moet worden (montageRequired).
+    
+    Antwoord ALLEEN in dit JSON formaat:
+    [{"name": "Bank (3-zits)", "vol": 1.5, "icon": "🛋️", "montageRequired": true, "montageMinutes": 20, "qty": 1}]`;
 
     const requestBody = {
         contents: [{
