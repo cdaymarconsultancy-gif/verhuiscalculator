@@ -1358,7 +1358,6 @@ window.sendToPandaDocUnified = async function () {
     btn.disabled = true;
 
     try {
-        // Aangezien je geen server hebt, is Zapier de enige manier om data van je computer naar PandaDoc te krijgen.
         const webhookUrl = 'https://hooks.zapier.com/hooks/catch/26673302/u0lcw3k/';
 
         const response = await fetch(webhookUrl, {
@@ -1377,10 +1376,10 @@ window.sendToPandaDocUnified = async function () {
             mode: 'no-cors'
         });
 
-        alert('Success! Gegevens zijn naar Zapier gestuurd. Omdat je lokaal test (geen server), is dit de enige werkende route naar PandaDoc.');
+        alert('Succes! De offerte is klaargezet voor digitale ondertekening. U ontvangt hier zometeen een e-mail over.');
     } catch (err) {
-        console.error('PandaDoc Error:', err);
-        alert('Verzenden mislukt. Controleer je internetverbinding.');
+        console.error('Signing API Error:', err);
+        alert('Verzenden mislukt. Controleer uw internetverbinding.');
     } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;
