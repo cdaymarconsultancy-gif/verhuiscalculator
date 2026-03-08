@@ -649,8 +649,8 @@ function handleFiles(files) {
             fill.style.width = '100%';
             // Toon de foutmelding kort in de UI voor diagnose
             const resultText = document.getElementById('upload-result-text');
-            if (resultText) resultText.innerHTML = `<small style="color:#ef4444">Fout bij AI-verbinding: ${err.message}</small>`;
-            setTimeout(() => finishScanSmart(images.length, `AI service tijdelijk niet beschikbaar: ${err.message}`), 2000);
+            if (resultText) resultText.innerHTML = `<small style="color:#ef4444">AI kon deze foto even niet verwerken. Gebruik handmatige invoer of probeer een andere foto.</small>`;
+            setTimeout(() => finishScanSmart(images.length), 2000);
         }
     });
 }
@@ -659,11 +659,8 @@ async function analyzeImagesWithGemini(images, apiKey) {
     // Ultieme lijst van modellen om Google-updates te overleven
     const models = [
         'gemini-2.0-flash',
-        'gemini-2.0-flash-001',
         'gemini-1.5-flash',
-        'gemini-1.5-flash-002',
-        'gemini-1.5-flash-latest',
-        'gemini-1.5-flash-8b'
+        'gemini-1.5-flash-latest'
     ];
 
     const prompt = `Inventariseer alle meubels op deze foto's voor een verhuis-offerte. Geef ALLEEN een JSON lijst terug: [{"name": "Meubelnaam", "vol": 1.0, "icon": "emoji", "montageRequired": true, "montageMinutes": 30, "qty": 1}]`;
