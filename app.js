@@ -744,7 +744,7 @@ function finishScanWithAI(fileCount, detectedItems) {
     document.getElementById('upload-scanning').style.display = 'none';
     document.getElementById('upload-done').style.display = 'flex';
     document.getElementById('upload-result-text').innerHTML =
-        `<strong>🤖 AI vond ${newItems.length} nieuwe items</strong><br><small style="color:#10b981">Totaal nu ${state.aiDetectedItems.length} items in de lijst.</small>`;
+        `<strong>🤖 AI vond ${newItems.length} nieuwe items [v2.1]</strong><br><small style="color:#10b981">Totaal nu ${state.aiDetectedItems.length} items in de lijst.</small>`;
 
     lucide.createIcons();
 }
