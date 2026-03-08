@@ -12,8 +12,8 @@ export default async function handler(req, res) {
 
     // Prioriteit voor modellen en versies
     const models = [
-        { name: 'gemini-1.5-flash', version: 'v1' },
-        { name: 'gemini-1.5-flash-8b', version: 'v1' },
+        { name: 'gemini-1.5-flash', version: 'v1beta' },
+        { name: 'gemini-1.5-flash-8b', version: 'v1beta' },
     ];
 
     const prompt = `Je bent een expert verhuis-taxateur. Analyseer de foto(s) en maak een lijst van meubels en witgoed.
