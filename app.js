@@ -679,32 +679,34 @@ async function analyzeImagesWithGemini(images, apiKey) {
     let lastErrorMessage = "";
 
     for (const modelName of models) {
-        try {
-            // We proberen het 'stable' v1 endpoint (v1beta gaf bij jou een foutmelding)
-            const url = `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${apiKey}`;
+        // We proberen per model zowel de 'v1' als de 'v1beta' server van Google
+        for (const version of ['v1', 'v1beta']) {
+            try {
+                const url = `https://generativelanguage.googleapis.com/${version}/models/${modelName}:generateContent?key=${apiKey}`;
 
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
-            });
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
 
-            if (response.ok) {
-                const result = await response.json();
-                const outputText = result?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-                const match = outputText.match(/\[[\s\S]*\]/);
-                if (match) {
-                    console.log(`AI succes met model: ${modelName}`);
-                    return JSON.parse(match[0]);
+                if (response.ok) {
+                    const result = await response.json();
+                    const outputText = result?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+                    const match = outputText.match(/\[[\s\S]*\]/);
+                    if (match) {
+                        console.log(`AI succes met model: ${modelName} (${version})`);
+                        return JSON.parse(match[0]);
+                    }
+                } else {
+                    const errData = await response.json().catch(() => ({}));
+                    lastErrorMessage = errData?.error?.message || `Status ${response.status}`;
+                    console.warn(`Model ${modelName} op ${version} mislukt: ${lastErrorMessage}`);
                 }
-            } else {
-                const errData = await response.json().catch(() => ({}));
-                lastErrorMessage = errData?.error?.message || `Status ${response.status}`;
-                console.warn(`Model ${modelName} mislukt: ${lastErrorMessage}`);
+            } catch (e) {
+                console.error(`Netwerkfout met ${modelName} op ${version}:`, e);
+                lastErrorMessage = e.message;
             }
-        } catch (e) {
-            console.error(`Netwerkfout met ${modelName}:`, e);
-            lastErrorMessage = e.message;
         }
     }
 
