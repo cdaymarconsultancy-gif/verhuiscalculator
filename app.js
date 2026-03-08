@@ -1213,9 +1213,12 @@ window.downloadOfferte = async function () {
     doc.setFont("helvetica", "normal");
     doc.text(orderNum, 60, 78);
 
+    const clientNameInput = document.getElementById('unified-name')?.value?.trim();
+    const clientNameDisplay = clientNameInput ? clientNameInput : "Klant";
+
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
-    doc.text("Geachte Klant,", 20, 95);
+    doc.text(`Geachte ${clientNameDisplay},`, 20, 95);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(11);
 
@@ -1319,6 +1322,7 @@ window.sendWhatsAppUnified = function () {
 
 window.sendEmailUnified = async function () {
     const email = document.getElementById('unified-email')?.value?.trim();
+    const naam = document.getElementById('unified-name')?.value?.trim();
     const feedback = document.getElementById('feedback-unified');
     if (!email || !email.includes('@')) {
         alert('Vul eerst een geldig e-mailadres in.');
@@ -1329,6 +1333,7 @@ window.sendEmailUnified = async function () {
         const resp = await fetch('send-email.php', {
             method: 'POST',
             body: JSON.stringify({
+                client_naam: naam || "Klant",
                 to_email: email,
                 van: getFromAddress(),
                 naar: getToAddress(),
@@ -1347,6 +1352,8 @@ window.sendEmailUnified = async function () {
 
 window.sendToPandaDocUnified = async function () {
     const email = document.getElementById('unified-email')?.value?.trim();
+    const naam = document.getElementById('unified-name')?.value?.trim();
+
     if (!email || !email.includes('@')) {
         alert('Vul eerst het e-mailadres van de klant in.');
         return;
@@ -1363,6 +1370,7 @@ window.sendToPandaDocUnified = async function () {
         const response = await fetch(webhookUrl, {
             method: 'POST',
             body: JSON.stringify({
+                client_naam: naam || "Klant",
                 client_email: email,
                 van: getFromAddress(),
                 naar: getToAddress(),
