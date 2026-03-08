@@ -8,15 +8,15 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Geen afbeeldingen ontvangen' });
     }
 
-    // fallback test API key if Vercel env is not set
     const apiKey = process.env.GEMINI_API_KEY || process.env.GEMENI_API_KEY || 'AIzaSyAoWNT1TuSqpmulfbTikHuh7NfUyagXzn4';
 
-    // We proberen verschillende combinaties van versies en modelnamen
+    // We breiden de lijst uit met de meest stabiele en nieuwste varianten
     const models = [
         { name: 'gemini-1.5-flash-latest', version: 'v1beta' },
         { name: 'gemini-1.5-flash', version: 'v1beta' },
         { name: 'gemini-1.5-flash', version: 'v1' },
-        { name: 'gemini-1.5-pro', version: 'v1beta' }
+        { name: 'gemini-1.5-flash-001', version: 'v1beta' },
+        { name: 'gemini-1.5-pro-latest', version: 'v1beta' }
     ];
 
     const prompt = `Je bent een expert verhuis-taxateur. Analyseer de foto's en geef een JSON lijst van meubels.
@@ -62,15 +62,13 @@ FORMAAT: [{"name": "Bank", "vol": 1.5, "icon": "🛋️", "montageRequired": tru
                     const parsed = JSON.parse(text);
                     return res.status(200).json(Array.isArray(parsed) ? parsed : (parsed.items || []));
                 } catch (e) {
-                    // Als het geen JSON is, probeer te herstellen
                     const match = text.match(/\[.*\]/s);
                     if (match) return res.status(200).json(JSON.parse(match[0]));
                     continue;
                 }
             } else {
-                lastError = data.error?.message || `Status ${response.status}`;
+                lastError = data.error?.message || JSON.stringify(data.error) || `Status ${response.status}`;
                 console.warn(`Model ${model.name} (${model.version}) failed:`, lastError);
-                // Ga door naar de volgende combinatie
                 continue;
             }
         } catch (err) {
@@ -80,7 +78,7 @@ FORMAAT: [{"name": "Bank", "vol": 1.5, "icon": "🛋️", "montageRequired": tru
     }
 
     return res.status(500).json({
-        error: `[v2.1] AI herkenning mislukt. Laatste poging was ${models[models.length - 1].name} (${models[models.length - 1].version}). Fout: ${lastError}`,
-        suggestion: "Controleer of de API key geldig is of voeg items handmatig toe."
+        error: `[v2.2] AI herkenning mislukt. Laatste poging: ${lastError}`,
+        suggestion: "Probeer het over een minuutje nog een keer of voeg items handmatig toe."
     });
 }
