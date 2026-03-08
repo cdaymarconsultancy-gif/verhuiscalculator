@@ -656,33 +656,22 @@ function handleFiles(files) {
 }
 
 async function analyzeImagesWithGemini(images, apiKey) {
-    // Ultieme lijst van modellen om Google-updates te overleven
+    // Meest stabiele combinatie eerst
     const models = [
-        'gemini-2.0-flash',
         'gemini-1.5-flash',
-        'gemini-1.5-flash-latest'
+        'gemini-1.5-flash-latest',
+        'gemini-2.0-flash'
     ];
 
-    const prompt = `Je bent een ervaren verhuis-expert. Bekijk de foto's en maak een lijst van ALLE meubels die moeten worden verhuisd.
-    
-    BELANGRIJK: Vergeet de BANK (sofa) niet als deze zichtbaar is! Zoek ook naar Bedden, Kasten, Tafels en Stoelen.
-    
-    Geef voor elk item:
-    1. Een duidelijke naam (bijv. "Bank 3-zits", "Eettafel", "Hoekbank").
-    2. Het volume in m3 (grote bank = 1.6, kleine bank = 1.0, tafel = 1.0, bed = 1.5).
-    3. Een passend icoon (emoji).
-    4. Of het gedemonteerd moet worden (montageRequired).
-    
-    Antwoord ALLEEN in dit JSON formaat:
-    [{"name": "Bank (3-zits)", "vol": 1.5, "icon": "🛋️", "montageRequired": true, "montageMinutes": 20, "qty": 1}]`;
+    const prompt = `Je bent een verhuis-expert. Inventariseer ALLE meubels op deze foto's. 
+    Kijk heel goed of er een BANK (sofa) staat. Zoek ook naar Bedden, Kasten en Tafels.
+    Antwoord ALLEEN met JSON lijst: [{"name": "Itemnaam", "vol": 1.5, "icon": "emoji", "montageRequired": true, "montageMinutes": 20, "qty": 1}]`;
 
     const requestBody = {
         contents: [{
             parts: [
                 { text: prompt },
-                ...images.map(img => ({
-                    inlineData: { mimeType: img.mimeType, data: img.base64 }
-                }))
+                ...images.map(img => ({ inlineData: { mimeType: img.mimeType, data: img.base64 } }))
             ]
         }]
     };
@@ -690,8 +679,7 @@ async function analyzeImagesWithGemini(images, apiKey) {
     let lastErrorMessage = "";
 
     for (const modelName of models) {
-        // We proberen per model zowel de 'v1beta' als de 'v1' server (v1beta werkt nu vaak beter voor foto's)
-        for (const version of ['v1beta', 'v1']) {
+        for (const version of ['v1', 'v1beta']) {
             try {
                 const url = `https://generativelanguage.googleapis.com/${version}/models/${modelName}:generateContent?key=${apiKey}`;
 
@@ -711,7 +699,7 @@ async function analyzeImagesWithGemini(images, apiKey) {
                     }
                 } else {
                     const errData = await response.json().catch(() => ({}));
-                    lastErrorMessage = errData?.error?.message || `Status ${response.status}`;
+                    lastErrorMessage = `${modelName}/${version}: ${errData?.error?.message || response.status}`;
                     console.warn(`Model ${modelName} op ${version} mislukt: ${lastErrorMessage}`);
                 }
             } catch (e) {
