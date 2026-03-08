@@ -61,9 +61,52 @@ const itemsData = [
 ];
 
 // ============================================================
+// SECURITY & DOMAIN LOCK
+// ============================================================
+const ALLOWED_DOMAINS = [
+    'localhost',
+    '127.0.0.1',
+    'studentverhuisdienst.nl',
+    'vercel.app',
+    '' // Toestaan voor lokaal 'file://' gebruik
+];
+
+function checkSecurity() {
+    const host = window.location.hostname;
+    const isAllowed = ALLOWED_DOMAINS.some(d => host === d || host.endsWith('.' + d));
+
+    if (!isAllowed) {
+        document.body.innerHTML = `
+            <div style="font-family:sans-serif; text-align:center; padding:50px; color:#1e293b;">
+                <h1>⚠️ Ongeautoriseerd Gebruik</h1>
+                <p>Deze calculator is intellectueel eigendom van Student Verhuis Dienst.</p>
+                <p>Kopiëren van deze tool is niet toegestaan.</p>
+            </div>
+        `;
+        throw new Error("Domain not authorized");
+    }
+
+    // Blokkeer rechtermuisknop om inspectie te bemoeilijken
+    document.addEventListener('contextmenu', e => e.preventDefault());
+
+    // Blokkeer F12 en Ctrl+Shift+I
+    document.onkeydown = function (e) {
+        if (e.keyCode == 123) return false;
+        if (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) return false;
+        if (e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) return false;
+        if (e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) return false;
+        if (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) return false;
+    };
+}
+
+// ============================================================
 // INIT
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
+    try {
+        checkSecurity();
+    } catch (e) { return; }
+
     initWizard();
     initInventory();
     initModes();
