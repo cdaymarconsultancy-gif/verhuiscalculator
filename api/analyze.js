@@ -78,8 +78,9 @@ FORMAAT: [{"name": "Bank", "vol": 1.5, "icon": "🛋️", "montageRequired": tru
         }
     }
 
+    const keyDebug = apiKey ? `...${apiKey.slice(-4)}` : 'GEEN SLEUTEL';
     return res.status(500).json({
-        error: `[v2.2] AI herkenning mislukt. Laatste poging: ${lastError}`,
-        suggestion: "Probeer het over een minuutje nog een keer of voeg items handmatig toe."
+        error: `[v2.4] Sleutel in gebruik: ${keyDebug}. Laatste poging: ${lastError}`,
+        suggestion: "Controleer of je echt de NIEUWE sleutel in Vercel hebt opgeslagen en ge-redeployed."
     });
 }
