@@ -682,8 +682,8 @@ async function analyzeImagesWithGemini(images, apiKey) {
     let lastErrorMessage = "";
 
     for (const modelName of models) {
-        // We proberen per model zowel de 'v1' als de 'v1beta' server van Google
-        for (const version of ['v1', 'v1beta']) {
+        // We proberen per model zowel de 'v1beta' als de 'v1' server (v1beta werkt nu vaak beter voor foto's)
+        for (const version of ['v1beta', 'v1']) {
             try {
                 const url = `https://generativelanguage.googleapis.com/${version}/models/${modelName}:generateContent?key=${apiKey}`;
 
