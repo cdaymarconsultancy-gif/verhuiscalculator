@@ -80,7 +80,7 @@ FORMAAT: [{"name": "Bank", "vol": 1.5, "icon": "🛋️", "montageRequired": tru
     }
 
     return res.status(500).json({
-        error: `AI herkenning mislukt. Laatste fout: ${lastError}`,
+        error: `[v2.1] AI herkenning mislukt. Laatste poging was ${models[models.length - 1].name} (${models[models.length - 1].version}). Fout: ${lastError}`,
         suggestion: "Controleer of de API key geldig is of voeg items handmatig toe."
     });
 }
