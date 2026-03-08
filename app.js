@@ -649,8 +649,8 @@ function handleFiles(files) {
             fill.style.width = '100%';
             // Toon de foutmelding kort in de UI voor diagnose
             const resultText = document.getElementById('upload-result-text');
-            if (resultText) resultText.innerHTML = `<small style="color:#ef4444">AI kon deze foto even niet verwerken. Gebruik handmatige invoer of probeer een andere foto.</small>`;
-            setTimeout(() => finishScanSmart(images.length), 2000);
+            if (resultText) resultText.innerHTML = `<small style="color:#ef4444">AI Error: ${err.message}</small>`;
+            setTimeout(() => finishScanSmart(images.length, `Fout: ${err.message}`), 2000);
         }
     });
 }
@@ -681,7 +681,8 @@ async function analyzeImagesWithGemini(images, apiKey) {
     let lastErrorMessage = "";
 
     for (const modelName of models) {
-        for (const version of ['v1', 'v1beta']) {
+        // We proberen EERST v1beta omdat die vaak beter werkt voor multimodal
+        for (const version of ['v1beta', 'v1']) {
             try {
                 const url = `https://generativelanguage.googleapis.com/${version}/models/${modelName}:generateContent?key=${apiKey}`;
 
