@@ -1095,8 +1095,6 @@ function getToAddress() {
 // PDF GENERATIE
 // ============================================================
 // ============================================================
-// OFFERTE GENERATIE (.docx)
-// ============================================================
 window.downloadOfferte = async function () {
     const btn = document.querySelector('.pdf-cta-btn');
     if (!btn) return;
@@ -1105,26 +1103,23 @@ window.downloadOfferte = async function () {
     btn.disabled = true;
 
     calculate(false);
-
     const dateStr = new Date().toLocaleDateString('nl-NL');
-    let logoBuffer = null;
-    try {
-        const res = await fetch('logo.png');
-        if (res.ok) {
-            logoBuffer = await res.arrayBuffer();
-        }
-    } catch (e) { console.warn('Could not fetch logo for PDF'); }
 
-    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle, ImageRun, PageBreak, VerticalAlign } = window.docx;
+    // Zorg ervoor dat jsPDF geladen is via CDN
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
 
-    // --- VARIABLES ---
+    // Kleuren config
+    const blueDark = [23, 37, 84];     // #172554
+    const blueAcc = [37, 99, 235];    // #2563eb
+    const grayTxt = [100, 116, 139];  // #64748b
+
+    // Variabelen voor berekening
     const p = state.prices;
     const currentVol = state.finalVolume || 5;
     const totalHours = state.finalHours || 2;
     const moversCost = totalHours * p.moverPerHour;
     const truckCost = p.truck;
-
-    // Calculate distance costs manually for PDF context
     const manualKmInput = document.getElementById('manual-km');
     const manualKmVal = manualKmInput ? parseFloat(manualKmInput.value) : NaN;
     const kmPerTrip = (!isNaN(manualKmVal) && manualKmVal >= 0) ? manualKmVal : (state.km > 0 ? state.km : 0);
@@ -1141,146 +1136,168 @@ window.downloadOfferte = async function () {
     const subtotaalRaw = moversCost + truckCost + kmCost + voorrijCost + montageCost;
     const discount = p.vroegboekKorting;
     const subtotaal = Math.max(0, subtotaalRaw - discount);
+    const orderNum = Math.floor(1000000 + Math.random() * 9000000).toString();
 
-    // --- HEADER HELPER ---
-    function getLogoParagraph(withPageBreak = false) {
-        let children = [];
-        if (withPageBreak) children.push(new PageBreak());
+    // Helper voor centreren van tekst
+    const cx = (text) => (doc.internal.pageSize.width / 2) - (doc.getTextWidth(text) / 2);
 
-        if (logoBuffer) {
-            children.push(new ImageRun({ data: logoBuffer, transformation: { width: 250, height: 92 } }));
-        } else {
-            children.push(new TextRun({ text: "Student Verhuis Dienst", bold: true, size: 48, color: "2563eb" }));
-        }
+    // ==========================================
+    // PAGINA 1 - WELKOM
+    // ==========================================
+    // "Fake" logo Header als we de afbeelding niet (makkelijk) in base64 hebben, of een blauw blok
+    doc.setTextColor(...blueAcc);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(28);
+    const logoTxt = "Student Verhuis Dienst";
+    doc.text(logoTxt, cx(logoTxt), 30);
 
-        return new Paragraph({
-            alignment: AlignmentType.CENTER,
-            children: children,
-            spacing: { after: 600 }
-        });
-    }
+    doc.setTextColor(...blueDark);
+    doc.setFontSize(24);
+    const t1 = "Welkom bij Student Verhuis Dienst!";
+    doc.text(t1, cx(t1), 60);
 
-    // --- TABLES HELPER ---
-    const noBorders = {
-        top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE },
-        left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE },
-        insideHorizontal: { style: BorderStyle.NONE }, insideVertical: { style: BorderStyle.NONE }
-    };
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    const introTekst = "Fijn dat u voor ons overweegt bij deze bijzondere stap in uw leven. Verhuizen is immers niet alleen een logistieke klus, maar het begin van een nieuw hoofdstuk. Bij Student Verhuis Dienst begrijpen we dat als geen ander. Daarom zorgen wij voor een soepele, zorgeloze overgang — met aandacht voor mens èn materiaal.\n\nOns team bestaat uit ervaren, vakkundige verhuizers met oog voor detail, betrokkenheid en service. We helpen dagelijks mensen in heel Nederland aan een frisse start, of het nu gaat om een stadsverhuizing, een seniorenverhuizing of een complete gezinsverhuizing. Flexibiliteit, zorgvuldigheid en klantgerichtheid staan bij ons centraal — net als het leveren.";
+    const splitIntro = doc.splitTextToSize(introTekst, 170);
+    doc.text(splitIntro, 20, 80);
 
-    const horizBorders = {
-        top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE },
-        left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE },
-        insideVertical: { style: BorderStyle.NONE }, insideHorizontal: { style: BorderStyle.SINGLE, size: 2, color: "f97316" } // Orange lines for Tarieven
-    };
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(...blueDark);
+    doc.text("Wat kunt u van ons verwachten?", 20, 130);
 
-    // --- PAGE 2 TABLE ---
-    const makeHeaderCell = (text, align = AlignmentType.LEFT) => new TableCell({
-        children: [new Paragraph({ children: [new TextRun({ text, bold: true, size: 20 })], alignment: align })],
-        shading: { fill: "f1f5f9" },
-        padding: { top: 100, bottom: 100, left: 100, right: 100 },
-        borders: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "cbd5e1" }, top: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
-    });
-
-    const makeDataCell = (text, align = AlignmentType.LEFT) => new TableCell({
-        children: [new Paragraph({ children: [new TextRun({ text, size: 20 })], alignment: align })],
-        padding: { top: 100, bottom: 100, left: 100, right: 100 },
-        borders: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "e2e8f0" }, top: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } }
-    });
-
-    const costRows = [
-        new TableRow({ children: [makeHeaderCell("Beschrijving"), makeHeaderCell("Aantal", AlignmentType.CENTER), makeHeaderCell("Eenheid", AlignmentType.CENTER), makeHeaderCell("Stukprijs", AlignmentType.RIGHT), makeHeaderCell("Totaal", AlignmentType.RIGHT)] }),
-        new TableRow({ children: [makeDataCell(`Verhuizers ${p.moversCount} personen`), makeDataCell(totalHours.toString(), AlignmentType.CENTER), makeDataCell("uur", AlignmentType.CENTER), makeDataCell(`€ ${fmt(p.moverPerHour)}`, AlignmentType.RIGHT), makeDataCell(`€ ${fmt(moversCost)}`, AlignmentType.RIGHT)] }),
-        new TableRow({ children: [makeDataCell(`Verhuiswagen 20 m³`), makeDataCell("1", AlignmentType.CENTER), makeDataCell("stuk", AlignmentType.CENTER), makeDataCell(`€ ${fmt(p.truck)}`, AlignmentType.RIGHT), makeDataCell(`€ ${fmt(truckCost)}`, AlignmentType.RIGHT)] }),
-        new TableRow({ children: [makeDataCell(`Rijkosten (${totalKm} km)`), makeDataCell("1", AlignmentType.CENTER), makeDataCell("rit", AlignmentType.CENTER), makeDataCell(`€ ${fmt(kmCost)}`, AlignmentType.RIGHT), makeDataCell(`€ ${fmt(kmCost)}`, AlignmentType.RIGHT)] })
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+    let bulletY = 145;
+    const bullets = [
+        ["Zorgeloze Start", "Wij regelen alles tot in de puntjes, zodat u zich kunt richten op uw nieuwe begin."],
+        ["Persoonlijke Aanpak", "Geen standaardformule, maar een aanpak die past bij uw wensen en situatie."],
+        ["Heldere Tarieven", "Eerlijke prijzen zonder verrassingen, altijd transparant en afgestemd op uw budget."],
+        ["Vakkundig Team", "Onze verhuizers zijn professioneel opgeleid en weten precies hoe ze uw spullen efficiënt verplaatsen."]
     ];
 
+    bullets.forEach(b => {
+        doc.setFont("helvetica", "bold");
+        doc.text("• " + b[0] + " - ", 20, bulletY);
+        let w = doc.getTextWidth("• " + b[0] + " - ");
+        doc.setFont("helvetica", "normal");
+        let bText = doc.splitTextToSize(b[1], 170 - w);
+        doc.text(bText, 20 + w, bulletY);
+        bulletY += 12 * bText.length;
+    });
+
+    // ==========================================
+    // PAGINA 2 - OFFERTE & TABEL
+    // ==========================================
+    doc.addPage();
+    doc.setTextColor(...blueAcc);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(28);
+    doc.text(logoTxt, cx(logoTxt), 30);
+
+    doc.setTextColor(...blueDark);
+    doc.setFontSize(22);
+    doc.text("OFFERTE", 20, 55);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Offerte datum: ", 20, 70);
+    doc.setFont("helvetica", "normal");
+    doc.text(dateStr, 60, 70);
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Offerte nummer: ", 20, 78);
+    doc.setFont("helvetica", "normal");
+    doc.text(orderNum, 60, 78);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("Geachte Klant,", 20, 95);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+
+    const offText = doc.splitTextToSize("Naar aanleiding van uw offerteaanvraag hebben wij een vrijblijvende offerte voor u opgesteld. U kunt deze offerte desgewenst via PandaDoc / Zapier als akkoord markeren.", 170);
+    doc.text(offText, 20, 103);
+
+    // Bouw de Tabel Data op voor AUTOTABLE
+    let tableBody = [
+        [`Verhuizers ${p.moversCount} personen`, `${totalHours}`, 'uur', `€ ${fmt(p.moverPerHour)}`, `€ ${fmt(moversCost)}`],
+        [`Verhuiswagen 20 m³`, `1`, 'stuk', `€ ${fmt(p.truck)}`, `€ ${fmt(truckCost)}`],
+        [`Rijkosten (${totalKm} km)`, `1`, 'rit', `€ ${fmt(kmCost)}`, `€ ${fmt(kmCost)}`],
+        [`Voorrijkosten verhuizers`, `${p.moversCount}`, 'stuk', `€ ${fmt(p.voorrijkosten / p.moversCount)}`, `€ ${fmt(voorrijCost)}`]
+    ];
     if (state.hasMontage && state.montageHours > 0) {
-        costRows.push(new TableRow({ children: [makeDataCell("Montage en demontage meubels"), makeDataCell(state.montageHours.toString(), AlignmentType.CENTER), makeDataCell("uur", AlignmentType.CENTER), makeDataCell(`€ ${fmt(p.montageRate)}`, AlignmentType.RIGHT), makeDataCell(`€ ${fmt(montageCost)}`, AlignmentType.RIGHT)] }));
+        tableBody.splice(3, 0, [`Montage/demontage`, `${state.montageHours}`, 'uur', `€ ${fmt(p.montageRate)}`, `€ ${fmt(montageCost)}`]);
     }
 
-    costRows.push(new TableRow({ children: [makeDataCell("Voorrijkosten verhuizers"), makeDataCell(p.moversCount.toString(), AlignmentType.CENTER), makeDataCell("stuk", AlignmentType.CENTER), makeDataCell(`€ ${fmt(p.voorrijkosten / p.moversCount)}`, AlignmentType.RIGHT), makeDataCell(`€ ${fmt(voorrijCost)}`, AlignmentType.RIGHT)] }));
-
-    const costTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        borders: noBorders,
-        rows: costRows
+    doc.autoTable({
+        startY: 120,
+        head: [['Beschrijving', 'Aantal', 'Eenheid', 'Stukprijs', 'Totaal']],
+        body: tableBody,
+        theme: 'plain',
+        headStyles: { fillColor: [241, 245, 249], textColor: [0, 0, 0], fontStyle: 'bold' },
+        styles: { cellPadding: 4, fontSize: 10, lineColor: [226, 232, 240], lineWidth: 0.1 },
+        columnStyles: {
+            0: { halign: 'left' },
+            1: { halign: 'center' },
+            2: { halign: 'center' },
+            3: { halign: 'right' },
+            4: { halign: 'right' }
+        }
     });
 
-    // --- PAGE 3 TARIEVEN TABLE ---
-    const tCell = (text, bold = false) => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text, size: 18, bold })] })], padding: { top: 150, bottom: 150 }, borders: { left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } } });
-    const tarievenTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        borders: horizBorders,
-        rows: [
-            new TableRow({ children: [tCell("Verhuizer", true), tCell("€ 32,50 p/u p.p."), tCell("(min. afname 3 uur)")] }),
-            new TableRow({ children: [tCell("Voorrijkosten verhuizers", true), tCell("Afhankelijk regio"), tCell("")] }),
-            new TableRow({ children: [tCell("Verhuiswagen 20 m3", true), tCell("€ 150,00 p/d"), tCell("Per dag")] }),
-            new TableRow({ children: [tCell("Km-vergoeding verhuiswagen 20 m3", true), tCell("Afhankelijk afstand"), tCell("")] }),
-            new TableRow({ children: [tCell("Verhuislift", true), tCell("€ 120 p/u"), tCell("(min. afname 1 uur)")] }),
-            new TableRow({ children: [tCell("Overuren na 8 werkuren", true), tCell("Toeslag van 150% p/u"), tCell("")] }),
-            new TableRow({ children: [tCell("Weekendtoeslag", true), tCell("Toeslag van € 25,- per verhuizer"), tCell("")] }),
-            new TableRow({ children: [tCell("Toeslag bijzonder zware object (> 80 kg)", true), tCell("Afhankelijk gewicht en complicaties"), tCell("")] }),
-        ]
+    let finalY = doc.lastAutoTable.finalY + 15;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    let subTxt = `Subtotaal      € ${fmt(subtotaalRaw)}`;
+    doc.text(subTxt, 190 - doc.getTextWidth(subTxt), finalY);
+
+    finalY += 10;
+    doc.setFontSize(10);
+    doc.setTextColor(34, 197, 94); // Groen voor korting
+    let kortTxt = `Vroegboekkorting (7 dgn)      -€ ${fmt(discount)}`;
+    doc.text(kortTxt, 190 - doc.getTextWidth(kortTxt), finalY);
+
+    // ==========================================
+    // PAGINA 3 - TARIEVEN
+    // ==========================================
+    doc.addPage();
+    doc.setTextColor(...blueAcc);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(28);
+    doc.text(logoTxt, cx(logoTxt), 30);
+
+    doc.setTextColor(...blueDark);
+    doc.setFontSize(22);
+    doc.text("TARIEVEN", 20, 55);
+
+    const tarievenRows = [
+        ["Verhuizer", "€ 32,50 p/u p.p.", "(min. afname 3 uur)"],
+        ["Voorrijkosten verhuizers", "Afhankelijk regio", ""],
+        ["Verhuiswagen 20 m3", "€ 150,00 p/d", "Per dag"],
+        ["Km-vergoeding verhuiswagen", "Afhankelijk afstand", ""],
+        ["Verhuislift", "€ 120 p/u", "(min. afname 1 uur)"],
+        ["Overuren na 8 werkuren", "Toeslag v. 150% p/u", ""],
+        ["Weekendtoeslag", "€ 25,- p.p.", ""],
+        ["Zware objecten (> 80kg)", "Obv gewicht", ""]
+    ];
+
+    doc.autoTable({
+        startY: 70,
+        body: tarievenRows,
+        theme: 'plain',
+        styles: { cellPadding: 5, fontSize: 10, lineColor: [249, 115, 22], lineWidth: { top: 0, bottom: 0.5, left: 0, right: 0 } },
+        columnStyles: { 0: { fontStyle: 'bold' } }
     });
 
-
-    // --- COMPILE DOCUMENT ---
-    const doc = new Document({
-        sections: [{
-            properties: {},
-            children: [
-                // PAGE 1
-                getLogoParagraph(false),
-                new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Welkom bij Student Verhuis Dienst!", bold: true, size: 36, color: "172554" })], spacing: { after: 400 } }),
-                new Paragraph({ children: [new TextRun({ text: "Fijn dat u voor ons overweegt bij deze bijzondere stap in uw leven. Verhuizen is immers niet alleen een logistieke klus, maar het begin van een nieuw hoofdstuk. Bij Student Verhuis Dienst begrijpen we dat als geen ander. Daarom zorgen wij voor een soepele, zorgeloze overgang — met aandacht voor mens èn materiaal.", size: 24 })], spacing: { after: 300 } }),
-                new Paragraph({ children: [new TextRun({ text: "Ons team bestaat uit ervaren, vakkundige verhuizers met oog voor detail, betrokkenheid en service. We helpen dagelijks mensen in heel Nederland aan een frisse start, of het nu gaat om een stadsverhuizing, een seniorenverhuizing of een complete gezinsverhuizing. Flexibiliteit, zorgvuldigheid en klantgerichtheid staan bij ons centraal — net als het leveren.", size: 24 })], spacing: { after: 500 } }),
-
-                new Paragraph({ children: [new TextRun({ text: "Wat kunt u van ons verwachten?", bold: true, size: 28, color: "172554" })], spacing: { after: 200 } }),
-                ...[
-                    { title: "Zorgeloze Start - ", text: "Wij regelen alles tot in de puntjes, zodat u zich kunt richten op uw nieuwe begin." },
-                    { title: "Persoonlijke Aanpak - ", text: "Geen standaardformule, maar een aanpak die past bij uw wensen en situatie." },
-                    { title: "Heldere Tarieven - ", text: "Eerlijke prijzen zonder verrassingen, altijd transparant en afgestemd op uw budget." },
-                    { title: "Vakkundig Team - ", text: "Onze verhuizers zijn professioneel opgeleid en weten precies hoe ze uw spullen veilig en efficiënt verplaatsen." }
-                ].map(item => new Paragraph({ bullet: { level: 0 }, children: [new TextRun({ text: item.title, bold: true, size: 22 }), new TextRun({ text: item.text, size: 22 })], spacing: { after: 150 } })),
-
-                // PAGE 2
-                getLogoParagraph(true),
-                new Paragraph({ children: [new TextRun({ text: "OFFERTE", bold: true, size: 36, color: "172554" })], spacing: { after: 400 } }),
-
-                new Paragraph({ children: [new TextRun({ text: `Offerte datum:  `, bold: true, size: 20 }), new TextRun({ text: dateStr, size: 20 })], spacing: { after: 100 } }),
-                new Paragraph({ children: [new TextRun({ text: `Offerte nummer: `, bold: true, size: 20 }), new TextRun({ text: Math.floor(1000000 + Math.random() * 9000000).toString(), size: 20 })], spacing: { after: 400 } }),
-                new Paragraph({ children: [new TextRun({ text: `Geachte Klant,`, bold: true, size: 24 })], spacing: { after: 200 } }),
-
-                new Paragraph({ children: [new TextRun({ text: "Naar aanleiding van uw offerteaanvraag hebben wij een vrijblijvende offerte voor u opgesteld. U kunt deze offerte eenvoudig online ondertekenen binnen 14 dagen na offertedatum.", size: 20 })], spacing: { after: 400 } }),
-
-                costTable,
-
-                new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "Subtotaal      ", bold: true, size: 24 }), new TextRun({ text: `€ ${fmt(subtotaalRaw)}`, bold: true, size: 24 })], spacing: { top: 300, bottom: 100 } }),
-                new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "Vroegboekkorting is 7 dagen geldig      ", bold: true, size: 20 }), new TextRun({ text: `-€ ${fmt(discount)}`, bold: true, size: 20 })], spacing: { bottom: 400 } }),
-
-                // PAGE 3
-                getLogoParagraph(true),
-                new Paragraph({ children: [new TextRun({ text: "TARIEVEN", bold: true, size: 32, color: "172554" })], spacing: { after: 400 } }),
-                tarievenTable
-            ],
-        }],
-    });
-
-    Packer.toBlob(doc).then(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `Offerte_SVD_${dateStr.replace(/\//g, '-')}.docx`;
-        a.click();
-        URL.revokeObjectURL(url);
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    }).catch(err => {
-        console.error("Docx Error:", err);
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-        alert("Fout bij maken van Word bestand.");
-    });
+    // Download Activeren via jsPDF (Browser Native)
+    doc.save(`Offerte_SVD_${dateStr.replace(/\//g, '-')}.pdf`);
+    btn.innerHTML = originalText;
+    btn.disabled = false;
 };
 
 // ============================================================
