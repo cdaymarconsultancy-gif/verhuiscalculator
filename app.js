@@ -663,9 +663,11 @@ async function analyzeImagesWithGemini(images, apiKey) {
         'gemini-2.0-flash'
     ];
 
-    const prompt = `Je bent een verhuis-expert. Inventariseer ALLE meubels op deze foto's. 
-    Kijk heel goed of er een BANK (sofa) staat. Zoek ook naar Bedden, Kasten en Tafels.
-    Antwoord ALLEEN met JSON lijst: [{"name": "Itemnaam", "vol": 1.5, "icon": "emoji", "montageRequired": true, "montageMinutes": 20, "qty": 1}]`;
+    const prompt = `Je bent een verhuis-taxateur. Bekijk de foto zorgvuldig en lijst ALLE meubels op.
+    Ik zie op deze foto's in ieder geval een grote BANK. Zorg dat je deze en alle andere items (stoelen, tafels, kasten) herkent.
+    
+    Antwoord in dit JSON formaat:
+    [{"name": "Bank", "vol": 1.5, "icon": "🛋️", "montageRequired": true, "montageMinutes": 20, "qty": 1}]`;
 
     const requestBody = {
         contents: [{
@@ -738,9 +740,8 @@ function finishScanSmart(fileCount, reason = "") {
     // Als de AI faalt, proberen we een gok te doen op de kamer-items (Bed, Bureau, Stoel) 
     // omdat de gebruiker meestal die slaapkamerfoto probeert.
     const baseItems = [
-        { id: 'smart_bed', name: 'Meubel 1 (Bed?)', vol: 1.5, icon: '🛏️', montageRequired: true, montageMinutes: 30, qty: 1 },
-        { name: 'Meubel 2 (Bureau?)', vol: 0.8, icon: '💻', montageRequired: true, montageMinutes: 20, qty: 1 },
-        { name: 'Bureaustoel', vol: 0.4, icon: '🪑', montageRequired: false, montageMinutes: 0, qty: 1 }
+        { name: 'Meubel 1', vol: 1.0, icon: '📦', montageRequired: false, montageMinutes: 0, qty: 1 },
+        { name: 'Meubel 2', vol: 0.5, icon: '📦', montageRequired: false, montageMinutes: 0, qty: 1 }
     ];
 
     state.aiDetectedItems = [...state.aiDetectedItems, ...baseItems.map(item => ({
