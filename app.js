@@ -573,106 +573,157 @@ function initUpload() {
     };
 }
 
-function handleFiles(files) {
+// Helper om afbeeldingen te verkleinen voor upload (Vercel heeft een 4.5MB limiet)
+async function resizeImageForAI(file, maxDim = 1200) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > maxDim) {
+                        height *= maxDim / width;
+                        width = maxDim;
+                    }
+                } else {
+                    if (height > maxDim) {
+                        width *= maxDim / height;
+                        height = maxDim;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Compress naar JPEG om data te besparen
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                const base64 = dataUrl.split(',')[1];
+                resolve({ base64, mimeType: 'image/jpeg', dataUrl });
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+async function handleFiles(files) {
     if (!files || files.length === 0) return;
 
     const strip = document.getElementById('thumbnail-strip');
-    // We wissen de strip niet, we voegen toe!
-
     const imageDataPromises = [];
-    Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        const promise = new Promise((resolve) => {
-            reader.onload = ev => {
-                const img = document.createElement('img');
-                img.src = ev.target.result;
-                img.className = 'thumb';
-                img.title = file.name;
-                strip.appendChild(img);
-                const base64 = ev.target.result.split(',')[1];
-                const mimeType = file.type || 'image/jpeg';
-                resolve({ base64, mimeType });
-            };
-        });
-        reader.readAsDataURL(file);
-        imageDataPromises.push(promise);
-    });
 
     document.getElementById('upload-idle').style.display = 'none';
     document.getElementById('upload-scanning').style.display = 'flex';
     document.getElementById('upload-done').style.display = 'none';
 
-    // Alleen verbergen als de lijst nog leeg is, anders laten we de oude lijst staan
     if (state.aiDetectedItems.length === 0) {
         document.getElementById('ai-results-panel').style.display = 'none';
     }
 
     const scanText = document.getElementById('scan-status-text');
     if (scanText) {
-        scanText.textContent = state.aiDetectedItems.length > 0 ? "Extra foto's analyseren..." : "Foto's analyseren...";
+        scanText.textContent = state.aiDetectedItems.length > 0 ? "Extra foto's voorbereiden..." : "Foto's voorbereiden...";
     }
 
-    // Reset de input zodat dezelfde foto's opnieuw gekozen kunnen worden indien gewenst
+    // Verwerk en toon thumbnails direct
+    for (const file of Array.from(files)) {
+        const resizePromise = resizeImageForAI(file).then(res => {
+            const img = document.createElement('img');
+            img.src = res.dataUrl;
+            img.className = 'thumb';
+            img.title = file.name;
+            strip.appendChild(img);
+            return { base64: res.base64, mimeType: res.mimeType };
+        }).catch(err => {
+            console.error("Resize error:", err);
+            return null;
+        });
+        imageDataPromises.push(resizePromise);
+    }
+
     const input = document.getElementById('file-input');
     if (input) input.value = '';
 
     let progress = 0;
     const fill = document.getElementById('scan-fill');
-    // scanText is al eerder opgehaald hierboven
     const progressInterval = setInterval(() => {
-        const increment = progress < 80 ? (Math.random() * 15 + 5) : (Math.random() * 2);
-        progress = Math.min(95, progress + increment);
-        fill.style.width = `${progress}%`;
-    }, 200);
-    Promise.all(imageDataPromises).then(async (images) => {
-        if (!GEMINI_API_KEY || GEMINI_API_KEY === '') {
-            console.warn('Geen API sleutel gevonden in de code.');
-            finishScanSmart(images.length);
-            return;
-        }
+        const increment = progress < 85 ? (Math.random() * 10 + 2) : (Math.random() * 1);
+        progress = Math.min(98, progress + increment);
+        if (fill) fill.style.width = `${progress}%`;
+    }, 250);
 
-        try {
-            const detectedItems = await analyzeImagesWithGemini(images);
+    try {
+        const images = (await Promise.all(imageDataPromises)).filter(img => img !== null);
 
-            if (detectedItems && detectedItems.length > 0) {
-                clearInterval(progressInterval);
-                fill.style.width = '100%';
-                setTimeout(() => finishScanWithAI(images.length, detectedItems), 300);
-            } else {
-                console.warn('AI herkende geen items, fallback naar schatting.');
-                clearInterval(progressInterval);
-                fill.style.width = '100%';
-                setTimeout(() => finishScanSmart(images.length, "Geen items herkend op deze foto's."), 400);
-            }
-        } catch (err) {
-            console.error('AI Error:', err);
+        if (scanText) scanText.textContent = "AI Analyseert items...";
+
+        const result = await analyzeImagesWithGemini(images);
+
+        clearInterval(progressInterval);
+        if (fill) fill.style.width = '100%';
+
+        if (result && result.error) {
+            // API gaf een fout terug
+            let errorMsg = result.error;
+            if (result.suggestion) errorMsg += `<br><small style="color:#64748b">${result.suggestion}</small>`;
+
             clearInterval(progressInterval);
-            fill.style.width = '100%';
-            // Toon de foutmelding kort in de UI voor diagnose
+            if (fill) fill.style.width = '100%';
+
             const resultText = document.getElementById('upload-result-text');
-            if (resultText) resultText.innerHTML = `<small style="color:#ef4444">AI Error: ${err.message}</small>`;
-            setTimeout(() => finishScanSmart(images.length, `Fout: ${err.message}`), 2000);
+            if (resultText) {
+                resultText.innerHTML = `<small style="color:#ef4444">${result.error}</small>`;
+            }
+
+            setTimeout(() => finishScanSmart(images.length, errorMsg), 400);
+        } else if (Array.isArray(result) && result.length > 0) {
+            setTimeout(() => finishScanWithAI(images.length, result), 300);
+        } else {
+            setTimeout(() => finishScanSmart(images.length, "Geen duidelijke items herkend. Probeer een andere hoek."), 400);
         }
-    });
+    } catch (err) {
+        console.error('AI Error:', err);
+        clearInterval(progressInterval);
+        if (fill) fill.style.width = '100%';
+
+        let errorMsg = err.message;
+        const resultText = document.getElementById('upload-result-text');
+        if (resultText) resultText.innerHTML = `<small style="color:#ef4444">Fout: ${errorMsg}</small>`;
+        setTimeout(() => finishScanSmart(files.length, `Fout: ${errorMsg}`), 1500);
+    }
 }
 
 async function analyzeImagesWithGemini(images) {
-    try {
-        const response = await fetch('/api/analyze', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ images })
-        });
+    // Stuur maximaal de laatste 3 foto's om binnen Vercel limieten te blijven
+    const limitedImages = images.slice(-3);
 
-        if (response.ok) {
-            return await response.json();
-        } else {
+    const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: limitedImages })
+    });
+
+    if (response.ok) {
+        return await response.json();
+    } else {
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
             const err = await response.json();
-            throw new Error(err.error || 'Server fout');
+            throw new Error(err.error || `Server fout (${response.status})`);
+        } else {
+            const text = await response.text();
+            throw new Error(`Server reageert niet goed (${response.status})`);
         }
-    } catch (e) {
-        console.error('Proxy fout:', e);
-        throw e;
     }
 }
 
@@ -699,18 +750,16 @@ function finishScanWithAI(fileCount, detectedItems) {
 }
 
 function finishScanSmart(fileCount, reason = "") {
-    // Als de AI faalt, proberen we een gok te doen op de kamer-items (Bed, Bureau, Stoel) 
-    // omdat de gebruiker meestal die slaapkamerfoto probeert.
+    // Geen items gevonden, we voegen handmatig een placeholder toe maar waarschuwen de gebruiker
     const baseItems = [
-        { name: 'Meubel 1', vol: 1.0, icon: '📦', montageRequired: false, montageMinutes: 0, qty: 1 },
-        { name: 'Meubel 2', vol: 0.5, icon: '📦', montageRequired: false, montageMinutes: 0, qty: 1 }
+        { name: 'Onbekend item (contoleren)', vol: 1.0, icon: '❓', montageRequired: false, montageMinutes: 0, qty: 1 }
     ];
 
     state.aiDetectedItems = [...state.aiDetectedItems, ...baseItems.map(item => ({
         ...item,
         checked: true,
-        needsDemontage: !!item.montageRequired,
-        needsMontage: !!item.montageRequired
+        needsDemontage: false,
+        needsMontage: false
     }))];
 
     renderAiItemsList();
@@ -721,7 +770,7 @@ function finishScanSmart(fileCount, reason = "") {
 
     const resultText = document.getElementById('upload-result-text');
     if (resultText) {
-        resultText.innerHTML = `<strong>Foto's verwerkt</strong><br><small style="color:#64748b">${reason || "Controleer de lijst hieronder."}</small>`;
+        resultText.innerHTML = `<strong>⚠️ AI twijfelt over items</strong><br><small style="color:#f59e0b">${reason || "Controleer en voeg items handmatig toe."}</small>`;
     }
 
     lucide.createIcons();
